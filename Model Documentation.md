@@ -24,7 +24,7 @@ I started with template code & instructions from video, taking baby steps like:
 1. Moving car by simlating waypoints & feeding them back to the unity engine. It was interesting to undersatnd concept of 50 waypoints, and how waypoints control speed etc aspect, very creative. Further, going in depth of defining starting 2+3 waypoints, and making use of SPLINE a magical utility simplifying this process to job for kids .. Spreading up of SPLINE points to N and understanding trignometry logic utilizing yaw rate computing reference points to be fed to Spline was quite a learning as well.
 2. Trying to stay in lane by unnderstanding Frenet d value compution from double yellow line and each lane being 4 meter wide. walkthough gave very subtle hints on when to use Frenet for ease, optimization and later map them back to global coordinates. I spotted some irregularities with sensor data, perhaps it was latency causing them but this wasted great amount of time, debugging to see why car behavior is wierd & failing unpredictibally.  
 3. Logic building to avoiding collision, understanding s coordinates and using them to see cars in each lane with distance from ego. 
-4. And lastly, left only lane change as demostrated ..
+4. And lastly, left only lane change as demostrated, but it was good enough to understand how to perform lane change. getXY() transform Frenet to Cartisian coordinates, we compute 3 future/ahead waypoint with dispacement factor of 30, 60, 90 and d, d value is factor added to the 2+4 which is nothing but middle of the lane, ie. if we switch lane from 0 (left) to 1 (right) -- cosidering from double yellow lines, middle of lane would be (2+4 * 1) = 6. And future waypoints would be calculated based on lane value or lane shoft value. These X & Y would be fed to Spline to derive 50 way points which basically help smoothen i.e. generate curve from present to target lane .. Havind said this, for some reason accuracy of my code was not upto mark specifcially lane change were not happening instant as expected. After debugging I thought  to reduce number of waypoints from 50 to 20. This gives us shorter prediction extrapolation path & better accuracy. This indeed work, though at one point we hit yellow line and warning flaged, though this happened post 15 miles of drive, and it could be excess CPU cycles / latency in play as well.. 
 
 Post this I started conceptualizing basic rules on how I would drive/actions given circumstances - and started defining high level planner with cost function as stated below..
 
@@ -45,12 +45,19 @@ This ideation pipeline was very helpful to start writing code. I basically start
 2. **getClosestCarsFromSensor** : Returning closest promixity car's out of all given by sensor data. This collection get's revisited every 20ms, however act as cache for 20ms helping with optimization of code..
 3. **prepareForAnamoly** :Method preparing what are viable actions if anamoly is identified.In this particular project, key anamoly is car ahead of us slowing down, making us 1. Either slown down OR 2. Change Lane. Ideally we should have seperate action method however to keep things less complex
 prepare will execute the identified actions ..
-4. **checkForAnamoly** : This is sort of parent method following execution of above helper methods i.e. checking if Anamoly arise, if so, what action shoudl be taken and further execute desired action .. 
+4. **checkForAnamoly** : This is sort of parent method following execution of above helper methods i.e. checking if Anamoly arise, if so, what action should be taken and further execute desired action .. 
 
 **Hyper-parameters** - Though there were technically only 3 parameters to play with, it took me awefully long time to fine tune'em. The params used to have smooth operatios were..
 1. Thershold distance indicating posible collision in same lane.
 2. Thershold distance indiciating safe to make lane change.
 3. Speed Progression to minimize jerk & effcetive lane changing..
+
+**Speed Progression** is important topic to talk about, initially it worked but in some corner cases, because for sporadic speed adjustment, excessive breaking was applied causing collision & even at time out of lane, as speed is key factor generating waypoints via spline. The improvised approach I followed is that -
+- Computed average lane speed for left, middle and right.
+- Minimim speed of 30 mph is maintained along with maximum of 50 mph. Minimum speed helped keep all factors in control and very smooth run.
+- If car ahead reach way closer than defined threshold (30m) like distance of 20m, aggressive breaking is applied to bring desired speed. This is the only scenario which bring speed down from 30 mph.
+- Factor to reduce speed: unless aggressive, I used factor derived by Avg Lane Speed with Current Speed to compute smooth de-acceleration..
+- For acceleration: from 0 - 40, used flat factor of .224. Post 40 mph, I used factor derived by Avg Lane Speed with Current Speed to compute smooth acceleration.. At higher speed aggressive acceleration and de-accelartion unless desired could lead to unpredictable behavior ..  
 
 At this stage, and post many terrible failed attempts, I had successful run of 10+ miles.. (https://www.youtube.com/watch?v=pf4h2VsrJ5M&t=25s). 
 
