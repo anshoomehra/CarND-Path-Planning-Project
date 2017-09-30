@@ -9,8 +9,13 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
-#include "spline.h" 
-
+#include "spline.h"
+#include <chrono>
+#include <ctime>
+typedef std::chrono::high_resolution_clock Clock;
+//std::chrono::system_clock::time_point
+//using namespace std::chrono; 
+//using namespace std::chrono::system_clock;
 using namespace std;
 
 // for convenience
@@ -42,6 +47,8 @@ struct car_spec
     	
     	car_spec() {}
   };
+
+double MAX_VELOCITY = 49.5;
 //End: Anshoo Add Struct
 
 // Checks if the SocketIO event has JSON data.
@@ -238,7 +245,7 @@ vector<car_spec> getClosestCarsFromSensor(vector<vector<double>> sensor_data, do
         check_car_s += ((double) prev_size*.02*check_speed);
         // Index 0: car lane id, Index 1: car lane in text 
         auto car_lane_id = getCarCurrentLane(sensor_data[i][6]); // 6 is d value
-        auto car_distance_from_ego = abs(check_car_s-ego_s);
+        auto car_distance_from_ego = check_car_s-ego_s;
         
         auto car_orientation = "";
 
@@ -250,6 +257,8 @@ vector<car_spec> getClosestCarsFromSensor(vector<vector<double>> sensor_data, do
         } else if (car_distance_from_ego < 0) {
         	car_orientation = "behind";	
         }
+
+        car_distance_from_ego = abs(check_car_s-ego_s);
 
         // Populate Collection with refined closest distance cars
         // In addition compute average lane speed.., it is computed real-time to avoid another run/coputational cycles of collection..
@@ -297,47 +306,48 @@ void prepareForAnamoly(vector<car_spec> closestCarReadings, double lane_change_d
 				closestCarReadings[i].lane_avg_speed << endl;
 	}
 	*/
+				// Check if Lane Change a viable option ..
+				// & If Ego on Leftmost lane, check for middle lane feasibility
+				if (egoLane == 0 && abs(closestCarReadings[1].car_distance_from_ego) >= lane_change_distance_thershold){
+					laneChangeTo = 1;
+					lane_speed = closestCarReadings[1].lane_avg_speed;
+					cout << "Lane change performed to Lane : " << laneChangeTo << endl;
 
-	// Check if Lane Change a viable option ..
-	// If Ego on Leftmost lane, check for middle lane feasibility
-	if (egoLane == 0 && abs(closestCarReadings[1].car_distance_from_ego) >= lane_change_distance_thershold){
-		laneChangeTo = 1;
-		lane_speed = closestCarReadings[1].lane_avg_speed;
-		cout << "Lane change performed to Lane : " << laneChangeTo << endl;
+					//cout << "debug 3 " << closestCarReadings[1].car_distance_from_ego << " -- "  <<
+					//    (abs(closestCarReadings[1].car_distance_from_ego) >= lane_change_distance_thershold) << endl;
+				} // If Ego on Middle lane, check for left lane feasibility as first priority
+				else if (egoLane == 1 && abs(closestCarReadings[0].car_distance_from_ego) >= lane_change_distance_thershold){
+					laneChangeTo = 0;
+					lane_speed = closestCarReadings[0].lane_avg_speed;
+					cout << "Lane change performed to Lane : " << laneChangeTo << endl;
 
-		//cout << "debug 3 " << closestCarReadings[1].car_distance_from_ego << " -- "  <<
-		//    (abs(closestCarReadings[1].car_distance_from_ego) >= lane_change_distance_thershold) << endl;
-	} // If Ego on Middle lane, check for left lane feasibility as first priority
-	else if (egoLane == 1 && abs(closestCarReadings[0].car_distance_from_ego) >= lane_change_distance_thershold){
-		laneChangeTo = 0;
-		lane_speed = closestCarReadings[0].lane_avg_speed;
-		cout << "Lane change performed to Lane : " << laneChangeTo << endl;
+					//cout << "debug 4 " << closestCarReadings[0].car_distance_from_ego << " -- "  <<
+					  //  (abs(closestCarReadings[0].car_distance_from_ego) >= lane_change_distance_thershold) << endl;
+				} // If Ego on Middle lane, check for right lane feasibility as second priority
+				else if (egoLane == 1 && abs(closestCarReadings[2].car_distance_from_ego) >= lane_change_distance_thershold){
+					laneChangeTo = 2;
+					lane_speed = closestCarReadings[2].lane_avg_speed;
+					cout << "Lane change performed to Lane : " << laneChangeTo << endl;
 
-		//cout << "debug 4 " << closestCarReadings[0].car_distance_from_ego << " -- "  <<
-		  //  (abs(closestCarReadings[0].car_distance_from_ego) >= lane_change_distance_thershold) << endl;
-	} // If Ego on Middle lane, check for right lane feasibility as second priority
-	else if (egoLane == 1 && abs(closestCarReadings[2].car_distance_from_ego) >= lane_change_distance_thershold){
-		laneChangeTo = 2;
-		lane_speed = closestCarReadings[2].lane_avg_speed;
-		cout << "Lane change performed to Lane : " << laneChangeTo << endl;
+					//cout << "debug 5 " << closestCarReadings[2].car_distance_from_ego << " -- "  <<
+					  //  (abs(closestCarReadings[2].car_distance_from_ego) >= lane_change_distance_thershold) << endl;
+				} // If Ego on Rihtmost lane, check for left lane feasibility 
+				else if (egoLane == 2 && abs(closestCarReadings[1].car_distance_from_ego) >= lane_change_distance_thershold){
+					laneChangeTo = 1;
+					lane_speed = closestCarReadings[1].lane_avg_speed;
+					cout << "Lane change performed to Lane : " << laneChangeTo << endl;
 
-		//cout << "debug 5 " << closestCarReadings[2].car_distance_from_ego << " -- "  <<
-		  //  (abs(closestCarReadings[2].car_distance_from_ego) >= lane_change_distance_thershold) << endl;
-	} // If Ego on Rihtmost lane, check for left lane feasibility 
-	else if (egoLane == 2 && abs(closestCarReadings[1].car_distance_from_ego) >= lane_change_distance_thershold){
-		laneChangeTo = 1;
-		lane_speed = closestCarReadings[1].lane_avg_speed;
-		cout << "Lane change performed to Lane : " << laneChangeTo << endl;
-
-		//cout << "debug 6 " << closestCarReadings[1].car_distance_from_ego << " -- "  <<
-		  //  (abs(closestCarReadings[1].car_distance_from_ego) >= lane_change_distance_thershold) << endl;
-	}
+					//cout << "debug 6 " << closestCarReadings[1].car_distance_from_ego << " -- "  <<
+					 //  (abs(closestCarReadings[1].car_distance_from_ego) >= lane_change_distance_thershold) << endl;
+				}
+		
+	
 
 	if (laneChangeTo == egoLane) { // i.e Lane Change not feasible, reduce speed..
 		speedChangeRequired = true;
 		lane_speed = closestCarReadings[egoLane].lane_avg_speed;
 		cout << "Speed must be reduced to avoid collision... " << endl;
-	}
+	} // Penalize Lane Aggresive Lane Changes .. 
 
 	//Execute Action by Updating reference values.. This can be seperate method wit eloborate controls..
 	tooClose = speedChangeRequired;
@@ -346,7 +356,7 @@ void prepareForAnamoly(vector<car_spec> closestCarReadings, double lane_change_d
 }
 
 //Added by Anshoo
-/**Ideation to have Cost Function
+/**Ideation to have Planner with Cost Function
   - checkAnamoly()  
     - anyCarsUnderThershold() -- Like Car in Lane ahead and Slowing Down ..
   		- Find Car's in Promixity (Front, Left, Right --- Ahead/Behind with speed for all three)
@@ -358,7 +368,8 @@ void prepareForAnamoly(vector<car_spec> closestCarReadings, double lane_change_d
  **/
 void checkForAnamoly(vector<vector<double>> sensor_data, double same_lane_distance_thershold, 
 									double lane_change_distance_thershold, int &egoLane, double ego_s,
-									int prev_size, bool &tooClose, double &avg_lane_speed) {
+									int prev_size, bool &tooClose, double &avg_lane_speed, 
+									double &forward_distance) {
 
 	//Get Closest Cars Data
 	vector<car_spec> closestCarReadings = getClosestCarsFromSensor(sensor_data, ego_s, prev_size, egoLane);
@@ -366,15 +377,94 @@ void checkForAnamoly(vector<vector<double>> sensor_data, double same_lane_distan
 	//FIRST ANAMOLY USE-CASE: Check if any car in same lane & under thershold i.e  slowing down..
 	//cout << "DEBUG 1 : Distance from Car Ahead in Lane : " << closestCarReadings[egoLane].car_distance_from_ego <<
 	  //       " Heading : " << closestCarReadings[egoLane].car_orientation << endl;
-	if (closestCarReadings[egoLane].car_distance_from_ego > 0 && 
-			closestCarReadings[egoLane].car_distance_from_ego < same_lane_distance_thershold){
+
+	if (closestCarReadings[egoLane].car_orientation == "ahead") {
+		forward_distance = closestCarReadings[egoLane].car_distance_from_ego;
+	}
+
+	if (closestCarReadings[egoLane].car_orientation == "ahead" &&
+		closestCarReadings[egoLane].car_distance_from_ego > 0 && 
+		closestCarReadings[egoLane].car_distance_from_ego < same_lane_distance_thershold){
 
 		cout << "Anamoly Situation Trigerred, Prepare To Action in Progress... " << endl;
 		// (slow or lane chnage) = prepareForAnamoly()
 		// executeActionForAnamoly(slow or lane change)) .. 
 		// Prepare itself is performing Action if needed, Action can seperate method ..
-		prepareForAnamoly(closestCarReadings, lane_change_distance_thershold, egoLane, tooClose, avg_lane_speed);
+		prepareForAnamoly(closestCarReadings, lane_change_distance_thershold, egoLane, 
+			              tooClose, avg_lane_speed);
 	}
+}
+
+// Added by Anshoo
+// Analyze the sensor data & compute avergae speed per lane..
+vector<double> averageLaneSpeed(vector<vector<double>> sensor_data,  int prev_size)
+{
+	double left_lane_speed = 0;
+	double center_lane_speed = 0;
+	double right_lane_speed = 0;
+
+  	double left_cars_count = 0;
+  	double center_cars_count = 0;
+  	double right_cars_count = 0;
+
+
+  	// each vector will 3 parameter, difference in distance, collision_ind[0,1] and buffer_ind
+  	for ( int i=0; i<sensor_data.size(); i++)
+  	{
+    	double vx = sensor_data[i][3];
+    	double vy = sensor_data[i][4];
+    	double d = sensor_data[i][6];
+
+    	double check_speed = sqrt(vx*vx + vy*vy);
+
+    	int lane = getCarCurrentLane(d);
+
+    	if ( lane ==  0 ) //left lane
+    	{
+    		left_lane_speed += check_speed;
+    		left_cars_count += 1;
+    	}
+    	else if ( lane == 1 )  //middle lane
+    	{
+    		center_lane_speed += check_speed;
+    		center_cars_count += 1;
+    	}
+    	else if ( lane == 2) // right lane
+    	{
+    		right_lane_speed += check_speed;
+    		right_cars_count += 1;
+    	}
+
+  	}
+
+	if ( left_cars_count > 0 )
+    {
+    	left_lane_speed = left_lane_speed / left_cars_count;
+    }
+    else
+    {
+    	left_lane_speed = MAX_VELOCITY;
+    }
+
+    if ( center_cars_count > 0 )
+    {
+    	center_lane_speed = center_lane_speed / center_cars_count;
+    }
+    else
+    {
+    	center_lane_speed = MAX_VELOCITY;
+    }
+
+    if ( right_cars_count > 0 )
+    {
+    	right_lane_speed = right_lane_speed / right_cars_count;
+    }
+    else
+    {
+    	right_lane_speed = MAX_VELOCITY;
+    }
+
+  return {left_lane_speed, center_lane_speed, right_lane_speed};
 }
 
 int main() {
@@ -426,12 +516,18 @@ double ref_vel = 0.0;//mph
 
 // Define thersholds, pretty critical for successful outcome..
 double same_lane_distance_thershold = 30; // distance in meters
-double lane_change_distance_thershold = 30; // distance in meters
+double lane_change_distance_thershold = 40; // distance in meters
 double avg_lane_speed = 0.0;
+
+bool too_close = false;
+double avg_speed = 0;
+double foward_distance;
+
+std::chrono::high_resolution_clock::time_point last_lane_change = std::chrono::high_resolution_clock::now();;
 
 // END: Added by Anshoo
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane,&ref_vel,same_lane_distance_thershold,lane_change_distance_thershold,&avg_lane_speed](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane,&ref_vel,same_lane_distance_thershold,lane_change_distance_thershold,&avg_lane_speed,&too_close,&avg_speed,&foward_distance,&last_lane_change](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -480,6 +576,11 @@ double avg_lane_speed = 0.0;
           		simulator_reset = false;
           	}
 
+          	// Reset foward distance to high value every time & too_close be false (ie. 20ms in this case)
+          	// and have this value be set by Anamoly logic.
+          	// This value will cause aggressive breaking if below 5m 
+          	foward_distance = 100;
+          	too_close = false;
             // Having list of previous path size help us define
             // smooth transition to new path ..example 50 points.. 
             int prev_size = previous_path_x.size();
@@ -490,42 +591,92 @@ double avg_lane_speed = 0.0;
               car_s = end_path_s;
             }
 
-            bool too_close = false;
-            double avg_speed = 0;
-
             //Get current lane of the Ego Car .. 
             lane = getCarCurrentLane(car_d);
-            cout << "EGO IS DRIVING IN LANE - " << lane << endl; 
+            int prev_ego_lane = lane;
+            cout << "EGO IS DRIVING IN LANE " << lane << endl; 
             
             //Baseed on Sensor data, check if any Anamoly like slowing cars in front,
             // If so, prepare what actions may be viable and further execute them.. 
             checkForAnamoly(sensor_fusion, same_lane_distance_thershold, 
 							lane_change_distance_thershold, lane, car_s,
-						    prev_size, too_close, avg_lane_speed);
+						    prev_size, too_close, avg_lane_speed, 
+						    foward_distance);
 
             //Speed/Velocity Control
             // If Ego Car is heading too close to car ahead in the same lane, slow down by factor
             // to avoid jerk.. 
             // Make use of lane average speed data to control de-acceleration sensitivity ..  
-            if (too_close){
-                if (ref_vel > 10 && ref_vel > avg_lane_speed) {
-            		ref_vel -= .224; // tried factor based on average, results were flaky .. (ref_vel/avg_lane_speed/100);
-            	}
-            } // If not too close scenario, ensure smooth start and gradual acceleration to max speed of 50 mph, manipulate sensitivity to have faster/smooth lane changes..
-            else if(ref_vel < 49.5) {
-              //ref_vel += .224;
-              if (ref_vel < 10) {
-              	ref_vel += .224;
-          	  } else if (ref_vel > 10){
-          	  	ref_vel += .350;
-          	  } 
-          	  else if (ref_vel > 49.5) {
-          	  	ref_vel = 49.5;
-          	  } 
-            } 
+            vector<double> lanes_avg_speed = averageLaneSpeed(sensor_fusion, prev_size);
 
+            /**
+            // Avoid aggresive lane changes .. 
+            auto present_time = std::chrono::high_resolution_clock::now();
+			double time_diference_between_lane_changes = std::chrono::duration<double>(present_time - last_lane_change).count();
+
+			cout << "Time Difference between Lane Changes in sec: " << time_diference_between_lane_changes << endl;
+
+			if ( time_diference_between_lane_changes < 2 ) {
+				cout << "Lane Change Penalized as too aggresive to lane change .." << endl;
+				lane = prev_ego_lane;
+			} 
+			else { 
+				cout << "Change Lane Executed .." << endl;
+				prev_ego_lane = lane;
+				// reset last lane change time .. 
+				last_lane_change = std::chrono::high_resolution_clock::now();
+			}
+			*/
+
+            cout << "Ego New Expected Lane: " << lane << endl;
+            cout << "Ego Present Speed: " << ref_vel << endl;
+            cout << "Ego Distance from car ahead: " << foward_distance << endl;
+            cout << "Too Close Alert: " << too_close <<endl;
+            cout << "Average Lane Speed" << lanes_avg_speed[lane] << endl;
+
+            if (too_close)
+            {
+            	//Aggressive breaking to have overall speed come below 30 mph, i.e. 
+            	//if distance is too short like 5m, else we would want to have min speed of 30 mph
+            	
+            	if (foward_distance <= 20 && ref_vel > 25){
+            		ref_vel -= .224;
+            		cout << "Ego new Reduced Speed Adjusted by Aggresive Breaking with factor .224 : " << ref_vel << endl;
+            	}// Else maintain minimum speed and speed reduction by factor of average speed..
+				else if ( ref_vel > lanes_avg_speed[lane] && ref_vel > 30) {
+              		cout << "Ego new Reduced Speed: " << (ref_vel - (ref_vel/lanes_avg_speed[lane])/100 + .050) 
+              		     << " -- By Applying Factor : " << ((ref_vel/lanes_avg_speed[lane])/100 + .050) << endl;
+
+              		ref_vel -= (ref_vel/lanes_avg_speed[lane])/100 + .050; // Reduce Speed by Factor Plus Bias
+              	}
+
+            }
+            else if ( ref_vel < 49.5 ){
+
+              if ( ref_vel >= 0 and ref_vel <= 40)
+              {
+              	cout << "Ego new Increased Speed: " << (ref_vel + .224) 
+              		     << " -- By Applying Factor : .224 " << endl;
+                // to avoid max jerk warning when the simulator starts
+                ref_vel += .224 ;
+              }
+              else
+              {
+              	cout << "Ego new Increased Speed: " << (ref_vel + (ref_vel/lanes_avg_speed[lane])/100) 
+              		     << " -- By Applying Factor : " << ((ref_vel/lanes_avg_speed[lane])/100) << endl;
+
+                ref_vel += (ref_vel/lanes_avg_speed[lane])/100; // Above 40mph Increase Speed by Factor Plus Bias
+              }
+
+              // avoid max speed exceeded
+              if ( ref_vel > MAX_VELOCITY )
+              {
+              	cout << "Ego max speed adjustement applied to: " << MAX_VELOCITY << endl;
+                ref_vel = MAX_VELOCITY;
+              }
+
+            }
             
-            cout << "Ego Speed manipulated by logic post analysis : " << ref_vel << endl;
           // End Sensor Fusion Logic
 
             // Sparsely placed waypoints placeholders
@@ -577,10 +728,11 @@ double avg_lane_speed = 0.0;
 
             }
 
+            //cout << " Lane ID Just Prior Way Points  " << lane << endl;
             // In Frenet add evenly 30m spaced points ahead of the starting reference
-            std::vector<double> next_wp0 = getXY(car_s+30, (2+4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            std::vector<double> next_wp1 = getXY(car_s+60, (2+4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            std::vector<double> next_wp2 = getXY(car_s+90, (2+4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            std::vector<double> next_wp0 = getXY(car_s+30, double(2+4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            std::vector<double> next_wp1 = getXY(car_s+60, double(2+4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            std::vector<double> next_wp2 = getXY(car_s+90, double(2+4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
             
             ptsx.push_back(next_wp0[0]);
             ptsx.push_back(next_wp1[0]);
@@ -632,7 +784,7 @@ double avg_lane_speed = 0.0;
             // Below for loop shows he math ..
             double target_x = 30.0; // Set target to 30m
             double target_y = s(target_x); // Ask Spline to give us y points
-            double target_dist = sqrt((target_x) * (target_x) + (target_y)*(target_y));
+            double target_dist = sqrt((target_x * target_x) + (target_y * target_y));
 
             double x_add_on=0;
 
@@ -642,7 +794,7 @@ double avg_lane_speed = 0.0;
             // in reality previous_path contains points which were 
             // not used by car yet, so say if car used only 3 points 
             // we have remaining 47, so this loop will add only 3 points to the waypoints..
-            for (int i=1; i<= 50-previous_path_x.size(); i++ ){
+            for (int i=1; i<= 20-previous_path_x.size(); i++ ){
               //std::cout << "Inside Populating Future Points..." << endl;
               double N = (target_dist/(.02*ref_vel/2.24)); //mph to meters/sec factor
               double x_point = x_add_on+(target_x/N); //X with Spread ..
